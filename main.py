@@ -16,25 +16,32 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 import os
 
+load_dotenv()
+
 AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID")
 AWS_REGION = os.getenv("AWS_REGION")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 REST_API_KEY = os.getenv("REST_API_KEY")
 S3_BUCKET_NAME= os.getenv("S3_BUCKET_NAME")
-MONGO_DB_NAME=os.getenv("MONGO_DB_NAME")
+ 
 MONGO_DB_URL =os.getenv("MONGO_DB_URL")
-
-
+ 
 
 app = FastAPI()
 
+
+if MONGO_DB_URL is None:
+    raise ValueError("MONGO_DB_URL is not set in the environment variables.")
+
 #mongodb 연결 
+mongo_client = MongoClient("mongodb://root:0707@172.16.210.121:27017/?authMechanism=DEFAULT")
 
-MONGO_DB_URL = "mongodb://allways:1234@13.124.80.188/test?retryWrites=true&w=majority"
-mongo_client = MongoClient(MONGO_DB_URL)
-db = mongo_client.get_database("file")
-collection = db.get_collection("theme")
+#db 연결 
+db = mongo_client.file
 
+ 
+ 
+ 
 #cors설정 
 app.add_middleware(
     CORSMiddleware,
@@ -48,9 +55,13 @@ app.add_middleware(
  
 
 
-class FastApiDataRequest(BaseModel):
+class FastApiThemeDataRequest(BaseModel):
     themeSeq: int
     imageUrl: str
+
+class FastApiThumbnailDataRequest(BaseModel):
+    postSeq: int 
+    imageUrl: str 
 
 #s3 접근 
 s3_client = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY, region_name=AWS_REGION)
@@ -74,21 +85,26 @@ def t2i(positivePrompt, negativePrompt):
     return response
 
 
-
 @app.post("/receive_theme")
-async def receive_data(data: FastApiDataRequest):
-    # feign client 로 값 받아옴 
-    #이제 여기 값들을 
+async def receive_theme(data: FastApiThemeDataRequest):
+
+    #collection 연결 
+    collection = db.theme
+    print("receive_theme")
+     
+    
     try:
         themeSeq = data.themeSeq
         imageUrl = data.imageUrl
 
-        # 여기서 받아온 데이터를 이용하여 작업 수행
         print(f"Received data - Theme Seq: {themeSeq}, Image URL: {imageUrl}")
         new_theme={"themeSeq":themeSeq , "imageUrl":imageUrl}
-        collection.insert_one(new_theme)
+        try:
+            result = collection.insert_one(new_theme)
+            print(f"Inserted document ID: {result.inserted_id}")
+        except Exception as e:
+            print(f"Error: {e}")
 
-        # 작업 수행 후 성공적인 응답 반환
         return {"message": "Data received successfully"}
 
     except ValidationError as e:
@@ -98,19 +114,17 @@ async def receive_data(data: FastApiDataRequest):
 
 
 @app.post("/receive_thumbnail")
-async def receive_data(data: FastApiDataRequest):
-    # feign client 로 값 받아옴 
-    #이제 여기 값들을 
+async def receive_thumbnail(data: FastApiThumbnailDataRequest):
+    collection = db.thumbnail
     try:
-        themeSeq = data.themeSeq
+        postSeq = data.postSeq
         imageUrl = data.imageUrl
 
-        # 여기서 받아온 데이터를 이용하여 작업 수행
-        print(f"Received data - Theme Seq: {themeSeq}, Image URL: {imageUrl}")
-        new_theme={"themeSeq":themeSeq , "imageUrl":imageUrl}
+        print(f"Received data - Theme Seq: {postSeq}, Image URL: {imageUrl}")
+        new_theme={"postSeq":postSeq , "imageUrl":imageUrl}
         collection.insert_one(new_theme)
+        
 
-        # 작업 수행 후 성공적인 응답 반환
         return {"message": "Data received successfully"}
 
     except ValidationError as e:
@@ -119,7 +133,6 @@ async def receive_data(data: FastApiDataRequest):
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @app.post("/generate_image/")
-# negative_prompt 값에 기본값을 넣어서 작성안해도 이미지 생성 가능하도록 
 def generate_image(
     positivePrompt: str = Form(...), 
     negativePrompt: Optional[str] = Form(None)):

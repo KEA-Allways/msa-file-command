@@ -1,19 +1,39 @@
 import uvicorn
-from fastapi import FastAPI, Form, Request
+from fastapi  import HTTPException
+from fastapi import FastAPI, Form 
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
 from typing import Optional
 import json
 import requests
-from starlette.config import Config
+import boto3
+from io import BytesIO
+import uuid
+from pydantic import BaseModel
+from pydantic import ValidationError
+from dotenv import load_dotenv
+from pymongo import MongoClient
+import os
 
+AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID")
+AWS_REGION = os.getenv("AWS_REGION")
+AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+REST_API_KEY = os.getenv("REST_API_KEY")
+S3_BUCKET_NAME= os.getenv("S3_BUCKET_NAME")
+MONGO_DB_NAME=os.getenv("MONGO_DB_NAME")
+MONGO_DB_URL =os.getenv("MONGO_DB_URL")
 
-
-config = Config(".env")
-REST_API_KEY = config('REST_API_KEY')
 
 
 app = FastAPI()
+
+#mongodb 연결 
+
+MONGO_DB_URL = "mongodb://allways:1234@13.124.80.188/test?retryWrites=true&w=majority"
+mongo_client = MongoClient(MONGO_DB_URL)
+db = mongo_client.get_database("file")
+collection = db.get_collection("theme")
 
 #cors설정 
 app.add_middleware(
@@ -25,44 +45,108 @@ app.add_middleware(
 )
 
 # [내 애플리케이션] > [앱 키] 에서 확인한 REST API 키 값 입력
-REST_API_KEY = 'dff46bfdc7a6817dc5799bfd78cdd0a6'
+ 
+
+
+class FastApiDataRequest(BaseModel):
+    themeSeq: int
+    imageUrl: str
+
+#s3 접근 
+s3_client = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY, region_name=AWS_REGION)
 
 # 이미지 생성하기 요청
-def t2i(prompt, negative_prompt):
+def t2i(positivePrompt, negativePrompt):
     r = requests.post(
         'https://api.kakaobrain.com/v2/inference/karlo/t2i',
         json={
-            'prompt': prompt,
-            'negative_prompt': negative_prompt
+            'prompt': positivePrompt,
+            'negative_prompt': negativePrompt
         },
         headers={
             'Authorization': f'KakaoAK {REST_API_KEY}',
             'Content-Type': 'application/json'
         }
     )
-     
+
     # 응답 JSON 형식으로 변환
     response = json.loads(r.content)
     return response
 
 
+
+@app.post("/receive_theme")
+async def receive_data(data: FastApiDataRequest):
+    # feign client 로 값 받아옴 
+    #이제 여기 값들을 
+    try:
+        themeSeq = data.themeSeq
+        imageUrl = data.imageUrl
+
+        # 여기서 받아온 데이터를 이용하여 작업 수행
+        print(f"Received data - Theme Seq: {themeSeq}, Image URL: {imageUrl}")
+        new_theme={"themeSeq":themeSeq , "imageUrl":imageUrl}
+        collection.insert_one(new_theme)
+
+        # 작업 수행 후 성공적인 응답 반환
+        return {"message": "Data received successfully"}
+
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=f"Validation error: {e.errors()}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+@app.post("/receive_thumbnail")
+async def receive_data(data: FastApiDataRequest):
+    # feign client 로 값 받아옴 
+    #이제 여기 값들을 
+    try:
+        themeSeq = data.themeSeq
+        imageUrl = data.imageUrl
+
+        # 여기서 받아온 데이터를 이용하여 작업 수행
+        print(f"Received data - Theme Seq: {themeSeq}, Image URL: {imageUrl}")
+        new_theme={"themeSeq":themeSeq , "imageUrl":imageUrl}
+        collection.insert_one(new_theme)
+
+        # 작업 수행 후 성공적인 응답 반환
+        return {"message": "Data received successfully"}
+
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=f"Validation error: {e.errors()}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
 @app.post("/generate_image/")
 # negative_prompt 값에 기본값을 넣어서 작성안해도 이미지 생성 가능하도록 
-def generate_image(prompt: str = Form(...), negative_prompt: Optional[str] = Form(None)):
+def generate_image(
+    positivePrompt: str = Form(...), 
+    negativePrompt: Optional[str] = Form(None)):
     # 이미지 생성하기 REST API 호출
-     
-    print(prompt)
-    print(negative_prompt)
-    response = t2i(prompt, negative_prompt)
-     
-    # 여기서 DB에 저장해야됨 
-    if response and "images" in response and response["images"]:
+    try:
+        print(positivePrompt)
+        print(negativePrompt)
+        s3_key_value = str(uuid.uuid1())
+        response = t2i(positivePrompt, negativePrompt)
         
-        #cors 문제 예상 
-        result_image_url = response["images"][0]["image"]
-        return JSONResponse(content={"image_url": result_image_url})
-    else:
-        return JSONResponse(content={"message": "이미지 생성 실패. 응답에서 이미지 URL을 찾을 수 없습니다."})
+        # 여기서 DB에 저장해야됨 
+        if response and "images" in response and response["images"]:
+            
+            #cors 문제 예상 
+            result_image_url = response["images"][0]["image"]
+            result_image_content = requests.get(result_image_url).content
+            image_key = f"{s3_key_value}_image.jpg"  # 이미지 파일의 S3 키, 고유하게 지정할 것
+            s3_client.put_object(Body=result_image_content, Bucket=S3_BUCKET_NAME, Key=image_key)
+            s3_image_url = f"https://{S3_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{image_key}"
+            
+            return JSONResponse(content={"s3_image_url": s3_image_url})
+        
+        else:
+            return JSONResponse(content={"message": "이미지 생성 실패. 응답에서 이미지 URL을 찾을 수 없습니다."})
+    except Exception as e :
+        print(f"An error occurred: {str(e)}")
+        return JSONResponse(content={"message": "서버 내부 오류가 발생했습니다."}, status_code=500)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

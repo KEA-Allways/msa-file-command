@@ -54,6 +54,9 @@ app.add_middleware(
 # [내 애플리케이션] > [앱 키] 에서 확인한 REST API 키 값 입력
  
 
+class FastApiUserProfileImgDataRequest(BaseModel):
+    userSeq: int
+    imageUrl: str
 
 class FastApiThemeDataRequest(BaseModel):
     themeSeq: int
@@ -84,6 +87,25 @@ def t2i(positivePrompt, negativePrompt):
     response = json.loads(r.content)
     return response
 
+# 유저 프로필 이미지 저장
+@app.post("/receive_userProfileImg")
+async def receive_userProfileImg(data: FastApiUserProfileImgDataRequest):
+    collection = db.user
+    try:
+        userSeq = data.userSeq
+        imageUrl = data.imageUrl
+
+        print(f"Received data - User Seq: {userSeq}, Image URL: {imageUrl}")
+        new_user ={"userSeq":userSeq , "imageUrl":imageUrl}
+        collection.insert_one(new_user)
+
+
+        return {"message": "Data received successfully"}
+
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=f"Validation error: {e.errors()}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 @app.post("/receive_theme")
 async def receive_theme(data: FastApiThemeDataRequest):

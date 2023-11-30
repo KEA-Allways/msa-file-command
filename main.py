@@ -3,12 +3,10 @@ from fastapi  import HTTPException
 from fastapi import FastAPI, Form 
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from PIL import Image
 from typing import Optional
 import json
 import requests
 import boto3
-from io import BytesIO
 import uuid
 from pydantic import BaseModel
 from pydantic import ValidationError
@@ -16,6 +14,7 @@ from dotenv import load_dotenv
 from pymongo import MongoClient
 import os
 
+env_path = r'C:\Users\suha hwang\Desktop\projectPackage\FastAPI-BOOK\kaloTest\venv\.env'
 load_dotenv()
 
 AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID")
@@ -88,8 +87,8 @@ def t2i(positivePrompt, negativePrompt):
     return response
 
 # 유저 프로필 이미지 저장
-@app.post("/receive_userProfileImg")
-async def receive_userProfileImg(data: FastApiUserProfileImgDataRequest):
+@app.post("/api/feign/profileImg")
+async def saveProfileImgToFastApi(data: FastApiUserProfileImgDataRequest):
     collection = db.user
     try:
         userSeq = data.userSeq
@@ -107,8 +106,8 @@ async def receive_userProfileImg(data: FastApiUserProfileImgDataRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
-@app.post("/receive_theme")
-async def receive_theme(data: FastApiThemeDataRequest):
+@app.post("/api/feign/theme")
+async def saveThemeToFastApi(data: FastApiThemeDataRequest):
 
     #collection 연결 
     collection = db.theme
@@ -135,8 +134,8 @@ async def receive_theme(data: FastApiThemeDataRequest):
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
-@app.post("/receive_thumbnail")
-async def receive_thumbnail(data: FastApiThumbnailDataRequest):
+@app.post("/api/feign/thumbnail")
+async def saveThumbnailToFastApi(data: FastApiThumbnailDataRequest):
     collection = db.thumbnail
     try:
         postSeq = data.postSeq
@@ -154,7 +153,7 @@ async def receive_thumbnail(data: FastApiThumbnailDataRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
-@app.post("/generate_image/")
+@app.post("/api/create")
 def generate_image(
     positivePrompt: str = Form(...), 
     negativePrompt: Optional[str] = Form(None)):
@@ -167,7 +166,6 @@ def generate_image(
         
         # 여기서 DB에 저장해야됨 
         if response and "images" in response and response["images"]:
-            
             #cors 문제 예상 
             result_image_url = response["images"][0]["image"]
             result_image_content = requests.get(result_image_url).content

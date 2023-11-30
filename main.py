@@ -182,4 +182,4 @@ def generate_image(
         return JSONResponse(content={"message": "서버 내부 오류가 발생했습니다."}, status_code=500)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8087)

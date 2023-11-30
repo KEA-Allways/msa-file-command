@@ -13,9 +13,10 @@ from pydantic import ValidationError
 from dotenv import load_dotenv
 from pymongo import MongoClient
 import os
+import py_eureka_client.eureka_client as eureka_client
 
-env_path = r'C:\Users\suha hwang\Desktop\projectPackage\FastAPI-BOOK\kaloTest\venv\.env'
-load_dotenv()
+env_path = r'.env'
+load_dotenv(dotenv_path=env_path)
 
 AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID")
 AWS_REGION = os.getenv("AWS_REGION")
@@ -143,7 +144,7 @@ async def saveThumbnailToFastApi(data: FastApiThumbnailDataRequest):
 
         print(f"Received data - Theme Seq: {postSeq}, Image URL: {imageUrl}")
         new_theme={"postSeq":postSeq , "imageUrl":imageUrl}
-        collection.insert_one(new_theme)
+        collection.insert_one(new_theme) 
         
 
         return {"message": "Data received successfully"}
@@ -164,7 +165,7 @@ def generate_image(
         s3_key_value = str(uuid.uuid1())
         response = t2i(positivePrompt, negativePrompt)
         
-        # 여기서 DB에 저장해야됨 
+        # 여기서 DB에 저장해야됨     
         if response and "images" in response and response["images"]:
             #cors 문제 예상 
             result_image_url = response["images"][0]["image"]
@@ -183,3 +184,9 @@ def generate_image(
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8087)
+
+    eureka_client.init(eureka_server="http://54.87.40.18",
+                    app_name="file-query-service",
+                    instance_port=8088,
+                    instance_host="127.0.0.1"
+                    )

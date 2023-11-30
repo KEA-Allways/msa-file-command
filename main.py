@@ -153,7 +153,7 @@ async def saveThumbnailToFastApi(data: FastApiThumbnailDataRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
-@app.post("/api/create")
+@app.post("/api/file/create")
 def generate_image(
     positivePrompt: str = Form(...), 
     negativePrompt: Optional[str] = Form(None)):

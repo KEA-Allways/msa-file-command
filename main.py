@@ -185,8 +185,7 @@ def generate_image(
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8087)
 
-    eureka_client.init(eureka_server="http://54.87.40.18",
-                    app_name="file-query-service",
-                    instance_port=8087,
-                    instance_host="0.0.0.0"
+    eureka_client.init(eureka_server="http://54.87.40.18:8761/eureka",
+                    app_name="file-command-service",
+                    instance_port=8087
                     )

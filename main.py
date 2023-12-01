@@ -13,7 +13,7 @@ from pydantic import ValidationError
 from dotenv import load_dotenv
 from pymongo import MongoClient
 import os
-import py_eureka_client.eureka_client as eureka_client
+# import py_eureka_client.eureka_client as eureka_client
 
 env_path = r'.env'
 load_dotenv(dotenv_path=env_path)
@@ -185,10 +185,10 @@ def generate_image(
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8087)
 
-    eureka_client.init(eureka_server="http://54.87.40.18:8761/eureka",
-                    app_name="file-command-service",
-                    instance_port=8087,
-                    instance_ip="3.86.230.148"
-                    )
+    # eureka_client.init(eureka_server="http://54.87.40.18:8761/eureka",
+    #                 app_name="file-command-service",
+    #                 instance_port=8087,
+    #                 instance_ip="3.86.230.148"
+    #                 )
     
 

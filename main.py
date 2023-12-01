@@ -25,22 +25,17 @@ S3_BUCKET_NAME= os.getenv("S3_BUCKET_NAME")
  
 MONGO_DB_URL =os.getenv("MONGO_DB_URL")
  
-
 app = FastAPI()
-
 
 if MONGO_DB_URL is None:
     raise ValueError("MONGO_DB_URL is not set in the environment variables.")
 
 #mongodb 연결 
-mongo_client = MongoClient("mongodb://root:0707@172.16.210.121:27017/?authMechanism=DEFAULT")
+mongo_client = MongoClient(MONGO_DB_URL);
 
 #db 연결 
 db = mongo_client.file
 
- 
- 
- 
 #cors설정 
 app.add_middleware(
     CORSMiddleware,
@@ -86,6 +81,17 @@ def t2i(positivePrompt, negativePrompt):
     response = json.loads(r.content)
     return response
 
+# 번역 
+def translate_text(text, source_language='auto', target_language='en'):
+    # Translator 객체 생성
+    translator = Translator(from_lang=source_language, to_lang=target_language)
+
+    # 번역 수행
+    translation = translator.translate(text)
+
+    # 번역된 텍스트 반환
+    return translation
+
 # 유저 프로필 이미지 저장
 @app.post("/api/feign/profileImg")
 async def saveProfileImgToFastApi(data: FastApiUserProfileImgDataRequest):
@@ -106,6 +112,7 @@ async def saveProfileImgToFastApi(data: FastApiUserProfileImgDataRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+# 테마 생성
 @app.post("/api/feign/theme")
 async def saveThemeToFastApi(data: FastApiThemeDataRequest):
 
@@ -134,6 +141,7 @@ async def saveThemeToFastApi(data: FastApiThemeDataRequest):
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
+# 썸네일 생성
 @app.post("/api/feign/thumbnail")
 async def saveThumbnailToFastApi(data: FastApiThumbnailDataRequest):
     collection = db.thumbnail
@@ -153,22 +161,33 @@ async def saveThumbnailToFastApi(data: FastApiThumbnailDataRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+# 이미지 생성
 @app.post("/api/file/create")
 def generate_image(
     positivePrompt: str = Form(...), 
     negativePrompt: Optional[str] = Form(None)):
+    positive_keyword =",high quality,Canon EF 24mm F2.8 IS USM"
+    negative_keyword = ",low quality, worst quality,mutated,mutation,distorted,deformed,white frame"
     # 이미지 생성하기 REST API 호출
     try:
-        print(positivePrompt)
-        print(negativePrompt)
-        s3_key_value = str(uuid.uuid1())
-        response = t2i(positivePrompt, negativePrompt)
+        # 번역 수행 
+        positivePrompt=translate_text(positivePrompt,source_language='ko', target_language='en')
+        negativePrompt=translate_text(negativePrompt,source_language='ko', target_language='en')
         
+        positivePrompt+=positive_keyword
+        negativePrompt+=negative_keyword
+        
+        s3_key_value = str(uuid.uuid1())
+        # 칼로 생성해주는 곳 
+        response = t2i(positivePrompt, negativePrompt)
         # 여기서 DB에 저장해야됨 
         if response and "images" in response and response["images"]:
+            
             #cors 문제 예상 
             result_image_url = response["images"][0]["image"]
             result_image_content = requests.get(result_image_url).content
+            print(result_image_url)
+            print(result_image_content)
             image_key = f"{s3_key_value}_image.jpg"  # 이미지 파일의 S3 키, 고유하게 지정할 것
             s3_client.put_object(Body=result_image_content, Bucket=S3_BUCKET_NAME, Key=image_key)
             s3_image_url = f"https://{S3_BUCKET_NAME}.s3.{AWS_REGION}.amazonaws.com/{image_key}"
@@ -177,9 +196,6 @@ def generate_image(
         
         else:
             return JSONResponse(content={"message": "이미지 생성 실패. 응답에서 이미지 URL을 찾을 수 없습니다."})
-    except Exception as e :
+    except Exception as e:
         print(f"An error occurred: {str(e)}")
-        return JSONResponse(content={"message": "서버 내부 오류가 발생했습니다."}, status_code=500)
-
-if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+        return JSONResponse(content={"message": f"서버 내부 오류가 발생했습니다. {str(e)}"}, status_code=500)

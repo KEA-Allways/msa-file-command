@@ -13,9 +13,10 @@ from pydantic import ValidationError
 from dotenv import load_dotenv
 from pymongo import MongoClient
 import os
+# import py_eureka_client.eureka_client as eureka_client
 
-env_path = r'C:\Users\suha hwang\Desktop\projectPackage\FastAPI-BOOK\kaloTest\venv\.env'
-load_dotenv()
+env_path = r'.env'
+load_dotenv(dotenv_path=env_path)
 
 AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID")
 AWS_REGION = os.getenv("AWS_REGION")
@@ -151,7 +152,7 @@ async def saveThumbnailToFastApi(data: FastApiThumbnailDataRequest):
 
         print(f"Received data - Theme Seq: {postSeq}, Image URL: {imageUrl}")
         new_theme={"postSeq":postSeq , "imageUrl":imageUrl}
-        collection.insert_one(new_theme)
+        collection.insert_one(new_theme) 
         
 
         return {"message": "Data received successfully"}
@@ -198,4 +199,15 @@ def generate_image(
             return JSONResponse(content={"message": "이미지 생성 실패. 응답에서 이미지 URL을 찾을 수 없습니다."})
     except Exception as e:
         print(f"An error occurred: {str(e)}")
-        return JSONResponse(content={"message": f"서버 내부 오류가 발생했습니다. {str(e)}"}, status_code=500)
+        return JSONResponse(content={"message": "서버 내부 오류가 발생했습니다."}, status_code=500)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8087)
+
+    # eureka_client.init(eureka_server="http://54.87.40.18:8761/eureka",
+    #                 app_name="file-command-service",
+    #                 instance_port=8087,
+    #                 instance_ip="3.86.230.148"
+    #                 )
+    
+

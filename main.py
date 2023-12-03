@@ -23,8 +23,8 @@ import os
 apm = make_apm_client({
     'ENVIRONMENT' : 'msa-allways',
     'SERVICE_NAME': 'msa-file-command',
-    'SECRET_TOKEN': 'hyUExzAkUlugz8LsPW',
-    'SERVER_URL': 'https://f694429f0917434384e0abfab751507d.apm.us-west-2.aws.cloud.es.io:443',  # Elastic APM 서버의 URL
+    'SECRET_TOKEN': ' ',
+    'SERVER_URL': ' ',  # Elastic APM 서버의 URL
 })
 #경로 설정 
 env_path = r'C:\Users\suha hwang\Desktop\projectPackage\FastAPI-BOOK\kaloTest\venv\.env'

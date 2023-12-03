@@ -202,16 +202,19 @@ def generate_image(
         return JSONResponse(content={"message": "서버 내부 오류가 발생했습니다."}, status_code=500)
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8087)
 
-    #local
-    eureka_client.init(eureka_server="http://localhost:8761",
+     #local
+    eureka_client.init(eureka_server="http://localhost:8761/eureka",
                     app_name="file-command-service",
                     instance_port=8087,
-                    instance_ip="0.0.0.0"
+                    instance_ip="127.0.0.1"
                     )
+    
+    uvicorn.run(app, host="0.0.0.0", port=8087)
+
+   
     #dev
-    # eureka_client.init(eureka_server="http://54.237.219.35:8761",
+    # eureka_client.init(eureka_server="http://3.213.139.105:8761",
     #                 app_name="file-command-service",
     #                 instance_port=8088,
     #                 instance_ip="0.0.0.0"

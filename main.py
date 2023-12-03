@@ -3,19 +3,31 @@ from fastapi  import HTTPException
 from fastapi import FastAPI, Form 
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
 from typing import Optional
 import json
 import requests
 import boto3
+from io import BytesIO
 import uuid
 from pydantic import BaseModel
 from pydantic import ValidationError
 from dotenv import load_dotenv
 from pymongo import MongoClient
+from translate import Translator
+from elasticapm.contrib.starlette import make_apm_client, ElasticAPM
+ 
 import os
-import py_eureka_client.eureka_client as eureka_client
-
-env_path = r'.env'
+ 
+# Elastic APM 설정
+apm = make_apm_client({
+    'ENVIRONMENT' : 'msa-allways',
+    'SERVICE_NAME': 'msa-file-command',
+    'SECRET_TOKEN': 'hyUExzAkUlugz8LsPW',
+    'SERVER_URL': 'https://f694429f0917434384e0abfab751507d.apm.us-west-2.aws.cloud.es.io:443',  # Elastic APM 서버의 URL
+})
+#경로 설정 
+env_path = r'C:\Users\suha hwang\Desktop\projectPackage\FastAPI-BOOK\kaloTest\venv\.env'
 load_dotenv(dotenv_path=env_path)
 
 AWS_ACCESS_KEY_ID=os.getenv("AWS_ACCESS_KEY_ID")
@@ -23,20 +35,25 @@ AWS_REGION = os.getenv("AWS_REGION")
 AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 REST_API_KEY = os.getenv("REST_API_KEY")
 S3_BUCKET_NAME= os.getenv("S3_BUCKET_NAME")
+MONGO_DB_COMMAND_URL=os.getenv("MONGO_DB_COMMAND_URL")
+
  
-MONGO_DB_URL =os.getenv("MONGO_DB_URL")
- 
+
+
 app = FastAPI()
 
-if MONGO_DB_URL is None:
+app.add_middleware(ElasticAPM, client=apm)
+if MONGO_DB_COMMAND_URL is None:
     raise ValueError("MONGO_DB_URL is not set in the environment variables.")
-
 #mongodb 연결 
-mongo_client = MongoClient(MONGO_DB_URL);
+mongo_client = MongoClient(MONGO_DB_COMMAND_URL)
 
 #db 연결 
 db = mongo_client.file
 
+ 
+ 
+ 
 #cors설정 
 app.add_middleware(
     CORSMiddleware,
@@ -49,9 +66,6 @@ app.add_middleware(
 # [내 애플리케이션] > [앱 키] 에서 확인한 REST API 키 값 입력
  
 
-class FastApiUserProfileImgDataRequest(BaseModel):
-    userSeq: int
-    imageUrl: str
 
 class FastApiThemeDataRequest(BaseModel):
     themeSeq: int
@@ -61,11 +75,16 @@ class FastApiThumbnailDataRequest(BaseModel):
     postSeq: int 
     imageUrl: str 
 
+class FastApiUserProfileImgDataRequest(BaseModel):
+    userSeq: int
+    imageUrl: str
+
 #s3 접근 
 s3_client = boto3.client('s3', aws_access_key_id=AWS_ACCESS_KEY_ID, aws_secret_access_key=AWS_SECRET_ACCESS_KEY, region_name=AWS_REGION)
 
 # 이미지 생성하기 요청
 def t2i(positivePrompt, negativePrompt):
+    
     r = requests.post(
         'https://api.kakaobrain.com/v2/inference/karlo/t2i',
         json={
@@ -112,6 +131,42 @@ async def saveProfileImgToFastApi(data: FastApiUserProfileImgDataRequest):
         raise HTTPException(status_code=422, detail=f"Validation error: {e.errors()}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        
+
+@app.put("/api/feign/profileImg")
+async def receive_userProfileImg(data: FastApiUserProfileImgDataRequest):
+    collection = db.user
+    result = None 
+    try:
+        userSeq = data.userSeq
+        imageUrl = data.imageUrl
+
+        existing_document = collection.find_one({"userSeq": userSeq})
+
+        if existing_document:
+            existing_image_url = existing_document.get("imageUrl", "")
+
+            # 이미지 URL이 다를 경우에만 수정
+            if existing_image_url != imageUrl:
+                print(f"Updating document for post Seq: {userSeq}")
+                result =collection.update_one({"userSeq": userSeq}, {"$set": {"imageUrl": imageUrl}})
+                if result.modified_count == 0:
+                    raise HTTPException(status_code=404, detail="User not found")
+
+            else:
+                print("Image URL is the same. No update needed.")
+        else:
+            print(f"Document not found for post Seq: {userSeq}")
+
+        
+        return {"message": "Profile image updated successfully"}
+
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=f"Validation error: {e.errors()}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+    
+ 
 
 # 테마 생성
 @app.post("/api/feign/theme")
@@ -200,24 +255,20 @@ def generate_image(
     except Exception as e:
         print(f"An error occurred: {str(e)}")
         return JSONResponse(content={"message": "서버 내부 오류가 발생했습니다."}, status_code=500)
-
+ 
 if __name__ == "__main__":
-
-     #local
-    eureka_client.init(eureka_server="http://localhost:8761/eureka",
+     uvicorn.run(app, host="0.0.0.0", port=8087)
+    # uvicorn.run(app, host="127.0.0.1", port=8088)
+     eureka_client.init(eureka_server="http://localhost:8761/eureka",
                     app_name="file-command-service",
                     instance_port=8087,
                     instance_ip="127.0.0.1"
                     )
     
-    uvicorn.run(app, host="0.0.0.0", port=8087)
 
-   
-    #dev
-    # eureka_client.init(eureka_server="http://3.213.139.105:8761",
-    #                 app_name="file-command-service",
-    #                 instance_port=8088,
-    #                 instance_ip="0.0.0.0"
-    #                 )
-    
+ 
 
+
+
+
+ 

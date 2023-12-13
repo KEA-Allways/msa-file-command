@@ -267,19 +267,19 @@ def generate_image(
  
 if __name__ == "__main__":
      
-     eureka_client.init(eureka_server="http://localhost:8761/eureka",
-                    app_name="file-command-service",
-                    instance_port=8087,
-                    instance_ip="0.0.0.0",
-                    )
-    
-    #dev 
-    #  eureka_client.init(eureka_server="http://3.213.139.105:8761/eureka",
+    #  eureka_client.init(eureka_server="http://localhost:8761/eureka",
     #                 app_name="file-command-service",
     #                 instance_port=8087,
-    #                 instance_ip="3.86.230.148",
-    #                 instance_host="3.86.230.148"
+    #                 instance_ip="0.0.0.0",
     #                 )
+    
+    #dev 
+     eureka_client.init(eureka_server="http://3.213.139.105:8761/eureka",
+                    app_name="file-command-service",
+                    instance_port=8087,
+                    instance_ip="3.86.230.148",
+                    instance_host="3.86.230.148"
+                    )
     
 
      uvicorn.run(app, host="0.0.0.0", port=8087)
